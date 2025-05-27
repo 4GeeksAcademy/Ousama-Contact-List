@@ -13,49 +13,63 @@ export const EditContact = () => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const loadContact = async () => {
-            setIsLoading(true);
-            setError(null);
+        console.log("=== DEBUG EDIT CONTACT ===");
+        console.log("ID del URL:", id);
+        console.log("Contactos en store:", store.contacts);
+        console.log("Cantidad de contactos:", store.contacts.length);
+        
+        if (store.contacts.length > 0) {
+            
+            console.log("IDs disponibles:");
+            store.contacts.forEach((contact, index) => {
+                console.log(`Contacto ${index}:`, {
+                    _id: contact._id,
+                    id: contact.id,
+                    name: contact.name
+                });
+            });
+            
             let foundContact = store.contacts.find(contact => contact._id === id);
-
+            console.log("Contacto encontrado por _id:", foundContact);
+            
             if (!foundContact) {
-                try {
-                    const response = await fetch("https://playground.4geeks.com/contact/agendas/Ousama/contacts"); 
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(`Error ${response.status}: ${errorData.message || 'No se pudieron cargar los contactos.'}`);
-                    }
-                    const data = await response.json();
-                    const allContacts = data.contacts || [];
-
-                    dispatch({
-                        type: "load_contacts",
-                        payload: { contacts: allContacts }
-                    });
-
-                    foundContact = allContacts.find(contact => contact._id === id);
-
-                    if (!foundContact) {
-                        throw new Error("El contacto no fue encontrado después de la recarga.");
-                    }
-                } catch (err) {
-                    console.error("Error al recargar contactos para edición:", err);
-                    setError(err.message);
-                    setIsLoading(false);
-                    return;
-                }
+                foundContact = store.contacts.find(contact => contact.id === id);
+                console.log("Contacto encontrado por id:", foundContact);
             }
             
-            setSelectedContact(foundContact);
+            if (!foundContact) {
+                foundContact = store.contacts.find(contact => contact.id === parseInt(id));
+                console.log("Contacto encontrado por id (número):", foundContact);
+            }
+            
+            if (!foundContact) {
+                foundContact = store.contacts.find(contact => contact._id === parseInt(id));
+                console.log("Contacto encontrado por _id (número):", foundContact);
+            }
+            
+            if (foundContact) {
+                setSelectedContact(foundContact);
+                setIsLoading(false);
+            } else {
+                setError("Contacto no encontrado en la lista.");
+                setIsLoading(false);
+            }
+        } else {
+            setError("No se pudieron cargar los contactos. Intenta volver a la página de inicio y luego editar.");
             setIsLoading(false);
-        };
-
-        loadContact();
-    }, [id, store.contacts, dispatch]);
+        }
+    }, [id, store.contacts]);
 
     const editContact = async (body) => {
+        console.log("=== DEBUG EDITAR CONTACTO ===");
+        console.log("ID para editar:", id);
+        console.log("Datos a enviar:", body);
+        
         try {
-            const response = await fetch(`https://playground.4geeks.com/contact/agendas/Ousama/contacts/${id}`, {
+            const url = `https://playground.4geeks.com/contact/agendas/Ousama/contacts/${id}`;
+            console.log("URL de edición:", url);
+            
+            const response = await fetch(url, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
@@ -63,12 +77,31 @@ export const EditContact = () => {
                 body: JSON.stringify(body)
             });
 
+            console.log("Status de respuesta:", response.status);
+            
+            const responseText = await response.text();
+            console.log("Respuesta cruda:", responseText);
+
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(`Error ${response.status}: ${errorData.message || 'No se pudo editar el contacto'}`);
+                let errorData = {};
+                try {
+                    errorData = JSON.parse(responseText);
+                } catch (e) {
+                    console.log("La respuesta de error no es JSON válido");
+                }
+                throw new Error(`Error ${response.status}: ${errorData.message || responseText || 'No se pudo editar el contacto'}`);
             }
 
-            const updatedContact = await response.json();
+            let updatedContact;
+            try {
+                updatedContact = JSON.parse(responseText);
+            } catch (e) {
+                console.error("Error parseando respuesta exitosa:", e);
+                throw new Error("Respuesta inválida del servidor");
+            }
+
+            console.log("Contacto actualizado:", updatedContact);
+            
             dispatch({
                 type: "update_contact",
                 payload: { updatedContact }
